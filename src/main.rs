@@ -120,7 +120,20 @@ fn process_update(canvas: &mut Canvas, message: &Message) {
         if !data.is_empty() {
             match data[0] {
                 0 => {
-                    // TODO(mkovacs): Handle pixel updates
+                    if (data.len() - 1) % 3 == 0 {
+                        let n = (data.len() - 1) / 3;
+                        for i in 0..n {
+                            let x = data[3*i + 1];
+                            let y = data[3*i + 2];
+                            let c = data[3*i + 3];
+                            canvas.set_pixel(x, y, c);
+                        }
+                    } else {
+                        println!(
+                            "[WARN] expected message length of 3n+1, got {}",
+                            message.len()
+                        );
+                    }
                 }
                 1 => {
                     if data.len() == 65537 {
