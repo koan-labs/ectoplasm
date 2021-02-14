@@ -123,9 +123,9 @@ fn process_update(canvas: &mut Canvas, message: &Message) {
                     if (data.len() - 1) % 3 == 0 {
                         let n = (data.len() - 1) / 3;
                         for i in 0..n {
-                            let x = data[3*i + 1];
-                            let y = data[3*i + 2];
-                            let c = data[3*i + 3];
+                            let x = data[3 * i + 1];
+                            let y = data[3 * i + 2];
+                            let c = data[3 * i + 3];
                             canvas.set_pixel(x, y, c);
                         }
                     } else {
