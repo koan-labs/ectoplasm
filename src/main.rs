@@ -52,7 +52,7 @@ struct RemoteCanvas {
     local_copy: Arc<RwLock<Canvas>>,
     socket_read: Arc<RwLock<SplitStream<WebSocketStream>>>,
     socket_write: Arc<RwLock<SplitSink<WebSocketStream, Message>>>,
-    update_listener: task::JoinHandle<()>,
+    updater_task: task::JoinHandle<()>,
 }
 
 impl RemoteCanvas {
@@ -65,7 +65,7 @@ impl RemoteCanvas {
             (Arc::new(RwLock::new(write)), Arc::new(RwLock::new(read)))
         };
         let local_copy = Arc::new(RwLock::new(Canvas::new()));
-        let update_listener = {
+        let updater_task = {
             let local_copy_clone = local_copy.clone();
             let socket_read_clone = socket_read.clone();
             task::spawn(async move {
@@ -89,7 +89,7 @@ impl RemoteCanvas {
             local_copy,
             socket_read,
             socket_write,
-            update_listener,
+            updater_task,
         };
         Ok(remote_canvas)
     }
