@@ -70,7 +70,7 @@ impl RemoteCanvas {
         self.local_copy.write().await.set_pixel(x, y, c);
     }
 
-    async fn get_pixel(&self, x: u8, y: u8) {
-        self.local_copy.read().await.get_pixel(x, y);
+    async fn get_pixel(&self, x: u8, y: u8) -> u8 {
+        self.local_copy.read().await.get_pixel(x, y)
     }
 }
