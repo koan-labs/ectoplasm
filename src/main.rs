@@ -17,6 +17,7 @@ type WebSocketStream = tokio_tungstenite::WebSocketStream<
 async fn main() {
     let server_url = Url::parse("wss://ghost.life").unwrap();
     let mut remote_canvas = RemoteCanvas::new(server_url).await.unwrap();
+    remote_canvas.fetch();
     for i in 0..=255 {
         remote_canvas.set_pixel(i, i, 128).await;
         remote_canvas.set_pixel(i, 255 - i, 128).await;
@@ -65,12 +66,17 @@ impl RemoteCanvas {
     }
 
     async fn set_pixel(&mut self, x: u8, y: u8, c: u8) {
-        let message = Message::Binary(vec![x, y, c]);
-        self.socket_write.send(message).await.unwrap();
         self.local_copy.write().await.set_pixel(x, y, c);
+        let message = Message::binary(vec![x, y, c]);
+        self.socket_write.send(message).await.unwrap()
     }
 
     async fn get_pixel(&self, x: u8, y: u8) -> u8 {
         self.local_copy.read().await.get_pixel(x, y)
+    }
+
+    async fn fetch(&mut self) {
+        let message = Message::text("fetch");
+        self.socket_write.send(message).await.unwrap()
     }
 }
