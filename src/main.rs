@@ -1,7 +1,7 @@
 use futures::stream::{SplitSink, SplitStream, StreamExt};
 use futures::SinkExt;
+use std::collections::VecDeque;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::task;
 use tokio_tungstenite::connect_async;
@@ -53,6 +53,7 @@ struct RemoteCanvas {
     socket_read: Arc<RwLock<SplitStream<WebSocketStream>>>,
     socket_write: Arc<RwLock<SplitSink<WebSocketStream, Message>>>,
     updater_task: task::JoinHandle<()>,
+    fetch_triggers: Arc<RwLock<VecDeque<triggered::Trigger>>>,
 }
 
 impl RemoteCanvas {
@@ -65,9 +66,11 @@ impl RemoteCanvas {
             (Arc::new(RwLock::new(write)), Arc::new(RwLock::new(read)))
         };
         let local_copy = Arc::new(RwLock::new(Canvas::new()));
+        let fetch_triggers = Arc::new(RwLock::new(VecDeque::<triggered::Trigger>::new()));
         let updater_task = {
             let local_copy_clone = local_copy.clone();
             let socket_read_clone = socket_read.clone();
+            let fetch_triggers_clone = fetch_triggers.clone();
             task::spawn(async move {
                 println!("started update listener");
                 loop {
@@ -81,7 +84,12 @@ impl RemoteCanvas {
                         .unwrap();
                     println!("received message");
                     let mut canvas = local_copy_clone.write().await;
-                    process_update(&mut canvas, &message);
+                    let is_key_frame = process_update(&mut canvas, &message);
+                    if is_key_frame {
+                        if let Some(trigger) = fetch_triggers_clone.write().await.pop_front() {
+                            trigger.trigger();
+                        }
+                    }
                 }
             })
         };
@@ -90,6 +98,7 @@ impl RemoteCanvas {
             socket_read,
             socket_write,
             updater_task,
+            fetch_triggers,
         };
         Ok(remote_canvas)
     }
@@ -105,16 +114,18 @@ impl RemoteCanvas {
     }
 
     async fn fetch(&mut self) {
+        let (trigger, listener) = triggered::trigger();
+        self.fetch_triggers.write().await.push_back(trigger);
         let message = Message::text("fetch");
         self.socket_write.write().await.send(message).await.unwrap();
         println!("sent fetch command");
-        // TODO(mkovacs): Await matching key-frame update message
-        tokio::time::sleep(Duration::from_millis(800)).await;
-        println!("done sleeping");
+        listener.await;
+        println!("done awaiting the matching key-frame");
     }
 }
 
-fn process_update(canvas: &mut Canvas, message: &Message) {
+// NOTE(mkovacs): Return value indicates whether the update was a key-frame
+fn process_update(canvas: &mut Canvas, message: &Message) -> bool {
     println!("received message: {}", message);
     if let Message::Binary(data) = message {
         if !data.is_empty() {
@@ -134,6 +145,7 @@ fn process_update(canvas: &mut Canvas, message: &Message) {
                             message.len()
                         );
                     }
+                    false
                 }
                 1 => {
                     if data.len() == 65537 {
@@ -148,16 +160,20 @@ fn process_update(canvas: &mut Canvas, message: &Message) {
                             message.len()
                         );
                     }
+                    true
                 }
                 2 => {
                     // TODO(mkovacs): Handle palette updates
+                    false
                 }
-                _ => {}
+                _ => false,
             }
         } else {
             println!("[WARN] unexpected empty message: {}", message);
+            false
         }
     } else {
         println!("[WARN] unexpected message: {}", message);
+        false
     }
 }
