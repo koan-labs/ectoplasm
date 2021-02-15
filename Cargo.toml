@@ -1,8 +1,11 @@
 [package]
 name = "ectoplasm"
 version = "0.1.0"
+description = "Library to draw on https://ghost.life"
+repository = "https://github.com/koan-labs/ectoplasm"
 authors = ["Mate Kovacs <mkovaxx@gmail.com>"]
 edition = "2018"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
