@@ -2,11 +2,12 @@ use futures::stream::{SplitSink, SplitStream, StreamExt};
 use futures::SinkExt;
 use std::collections::VecDeque;
 use std::sync::Arc;
+pub use tokio;
 use tokio::sync::RwLock;
 use tokio::task;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
-use url::Url;
+pub use url;
 
 type WebSocketStream = tokio_tungstenite::WebSocketStream<
     tokio_tungstenite::stream::Stream<
@@ -15,80 +16,36 @@ type WebSocketStream = tokio_tungstenite::WebSocketStream<
     >,
 >;
 
-use num_complex::Complex32;
-use rand::Rng;
-
-#[tokio::main]
-async fn main() {
-    let server_url = Url::parse("wss://ghost.life").unwrap();
-    let mut remote_canvas = RemoteCanvas::new(server_url).await.unwrap();
-    remote_canvas.fetch().await;
-    /*
-    for y in 0..=255 {
-        for x in 0..=255 {
-            let c = remote_canvas.get_pixel(x, y).await;
-            remote_canvas.set_pixel(x, y, 255 - c).await;
-        }
-    }
-    */
-    let mut rng = rand::thread_rng();
-    let dist = num_complex::ComplexDistribution::new(
-        rand::distributions::Uniform::new(-1.5, 0.5),
-        rand::distributions::Uniform::new(-1.0, 1.0),
-    );
-    loop {
-        let c = rng.sample(dist);
-        let mut z = Complex32::new(0.0, 0.0);
-        for _ in 0..200 {
-            let w = z * z + c;
-            if w.re < -1.5 || w.re > 0.5 || w.im < -1.0 || w.im > 1.0 {
-                break;
-            }
-            z = w;
-        }
-        let (cx, cy) = complex_to_coords(c);
-        let (zx, zy) = complex_to_coords(z);
-        let index = remote_canvas.get_pixel(zx, zy).await;
-        remote_canvas.set_pixel(cx, cy, index).await;
-    }
-}
-
-fn complex_to_coords(c: Complex32) -> (u8, u8) {
-    let x = (128.0 * (c.re + 1.5)) as u8;
-    let y = (128.0 * (c.im + 1.0)) as u8;
-    (x, y)
-}
-
-struct Canvas {
+pub struct Canvas {
     buffer: [[u8; 256]; 256],
 }
 
 impl Canvas {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             buffer: [[0; 256]; 256],
         }
     }
 
-    fn get_pixel(&self, x: u8, y: u8) -> u8 {
+    pub fn get_pixel(&self, x: u8, y: u8) -> u8 {
         self.buffer[y as usize][x as usize]
     }
 
-    fn set_pixel(&mut self, x: u8, y: u8, c: u8) {
+    pub fn set_pixel(&mut self, x: u8, y: u8, c: u8) {
         self.buffer[y as usize][x as usize] = c;
     }
 }
 
-struct RemoteCanvas {
+pub struct RemoteCanvas {
     local_copy: Arc<RwLock<Canvas>>,
-    socket_read: Arc<RwLock<SplitStream<WebSocketStream>>>,
+    _socket_read: Arc<RwLock<SplitStream<WebSocketStream>>>,
     socket_write: Arc<RwLock<SplitSink<WebSocketStream, Message>>>,
-    updater_task: task::JoinHandle<()>,
+    _updater_task: task::JoinHandle<()>,
     fetch_triggers: Arc<RwLock<VecDeque<triggered::Trigger>>>,
 }
 
 impl RemoteCanvas {
-    async fn new(server_url: Url) -> Result<Self, String> {
+    pub async fn new(server_url: url::Url) -> Result<Self, String> {
         let (socket, _) = connect_async(server_url)
             .await
             .map_err(|err| err.to_string())?;
@@ -126,25 +83,25 @@ impl RemoteCanvas {
         };
         let remote_canvas = Self {
             local_copy,
-            socket_read,
+            _socket_read: socket_read,
             socket_write,
-            updater_task,
+            _updater_task: updater_task,
             fetch_triggers,
         };
         Ok(remote_canvas)
     }
 
-    async fn set_pixel(&mut self, x: u8, y: u8, c: u8) {
+    pub async fn set_pixel(&mut self, x: u8, y: u8, c: u8) {
         self.local_copy.write().await.set_pixel(x, y, c);
         let message = Message::binary(vec![x, y, c]);
         self.socket_write.write().await.send(message).await.unwrap()
     }
 
-    async fn get_pixel(&self, x: u8, y: u8) -> u8 {
+    pub async fn get_pixel(&self, x: u8, y: u8) -> u8 {
         self.local_copy.read().await.get_pixel(x, y)
     }
 
-    async fn fetch(&mut self) {
+    pub async fn fetch(&mut self) {
         let (trigger, listener) = triggered::trigger();
         self.fetch_triggers.write().await.push_back(trigger);
         let message = Message::text("fetch");
