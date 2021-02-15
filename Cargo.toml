@@ -18,3 +18,4 @@ url = "2.2.0"
 [dev-dependencies]
 num-complex = { version = "0.3.1", features = ["rand"] }
 rand = "0.7.0"
+unifont = "0.1.0"
